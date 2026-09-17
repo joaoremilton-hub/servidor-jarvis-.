@@ -4,7 +4,7 @@ from google import genai
 
 app = Flask(__name__)
 
-# Inicializa o cliente oficial da biblioteca google-genai
+# Inicializa o cliente oficial
 api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 
@@ -20,17 +20,9 @@ def chat():
         if not prompt:
             return jsonify({'response': 'Prompt vazio'}), 400
 
-        # Lista os modelos ativos disponiveis para a sua chave e seleciona o primeiro compativel
-        available_models = [
-            m.name for m in client.models.list() 
-            if 'generateContent' in getattr(m, 'supported_generation_methods', [])
-        ]
-        
-        # Prefere modelos flash ativos, senao usa o primeiro disponivel
-        target_model = next((m for m in available_models if 'flash' in m), available_models[0] if available_models else 'gemini-2.5-flash')
-
+        # Usa o alias padrao estavel recomendado pela documentacao oficial
         response = client.models.generate_content(
-            model=target_model,
+            model='gemini-2.5-flash',
             contents=prompt
         )
 
