@@ -1,11 +1,12 @@
 import os
 from flask import Flask, request, jsonify
-import google.generativeai as genai
+from google import genai
 
 app = Flask(__name__)
 
-# Configura a chave de API
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# Configura o cliente da SDK oficial do Google
+api_key = os.environ.get("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key)
 
 @app.route('/', methods=['GET'])
 def home():
@@ -17,18 +18,34 @@ def chat():
         data = request.get_json(force=True)
         prompt = data.get('prompt', 'Ola')
 
-        # Tenta a lista de modelos ativos um a um automaticamente
-        modelos = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro']
-        
-        for m in modelos:
+        # 1. Tenta explicitamente os modelos recomendados da geração atual
+        modelos_prioritarios = [
+            'gemini-3.6-flash',
+            'gemini-3.5-flash',
+            'gemini-2.5-flash'
+        ]
+
+        for model_name in modelos_prioritarios:
             try:
-                model = genai.GenerativeModel(m)
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
                 return jsonify({'response': response.text})
             except Exception:
                 continue
 
-        return jsonify({'error': 'Nenhum modelo respondeu'}), 500
+        # 2. Se nenhum da lista responder, consulta dinamicamente o primeiro ativo da sua chave
+        available_models = [m.name for m in client.models.list()]
+        if available_models:
+            target_model = available_models[0]
+            response = client.models.generate_content(
+                model=target_model,
+                contents=prompt
+            )
+            return jsonify({'response': response.text})
+
+        return jsonify({'error': 'Nenhum modelo ativo encontrado na sua API Key'}), 500
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
