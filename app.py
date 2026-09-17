@@ -7,8 +7,9 @@ app = Flask(__name__)
 # Configura a chave da API do Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Modelo atualizado conforme exigido pela API do Google
-model = genai.GenerativeModel('gemini-2.5-flash')
+# Inicializa com o modelo padrão Gemini 2.5 Flash
+MODEL_NAME = 'gemini-2.5-flash'
+model = genai.GenerativeModel(MODEL_NAME)
 
 @app.route('/', methods=['GET'])
 def home():
