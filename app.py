@@ -1,26 +1,12 @@
 import os
 from flask import Flask, request, jsonify
-import google.generativeai as genai
+from google import genai
 
 app = Flask(__name__)
 
-# Configura a chave da API do Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-
-def get_active_model():
-    try:
-        # Busca dinamicamente um modelo disponivel que suporte generateContent
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                if 'flash' in m.name:
-                    return genai.GenerativeModel(m.name)
-        # Fallback para o modelo padrao caso nao liste
-        return genai.GenerativeModel('gemini-2.5-flash')
-    except Exception as e:
-        print(f"Erro ao buscar modelo: {e}")
-        return genai.GenerativeModel('gemini-2.5-flash')
-
-model = get_active_model()
+# Inicializa o cliente oficial da nova biblioteca do Google
+api_key = os.environ.get("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key)
 
 @app.route('/', methods=['GET'])
 def home():
@@ -34,8 +20,19 @@ def chat():
         if not prompt:
             return jsonify({'response': 'Prompt vazio'}), 400
         
-        # Gera a resposta utilizando o modelo ativo selecionado
-        response = model.generate_content(prompt)
+        # Envia a requisição via SDK oficial usando fallback de modelo
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+        except Exception:
+            # Fallback para versão experimental/lite caso a conta exija
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
+
         return jsonify({'response': response.text})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
