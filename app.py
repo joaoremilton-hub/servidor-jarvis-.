@@ -10,7 +10,7 @@ client = genai.Client(api_key=api_key)
 
 @app.route('/', methods=['GET'])
 def home():
-    return "Servidor Jarvis IA rodando perfeitamente!"
+    return "Servidor Jarvis IA rodando!"
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -20,32 +20,19 @@ def chat():
         if not prompt:
             return jsonify({'response': 'Prompt vazio'}), 400
 
-        # Lista de modelos suportados para tentar na ordem de preferencia
-        models_to_try = [
-            'gemini-2.0-flash',
-            'gemini-2.0-flash-001',
-            'gemini-1.5-flash',
-            'gemini-1.5-flash-latest'
-        ]
+        # Seleciona dinamicamente o modelo ativo disponivel na conta
+        available_models = [m.name for m in client.models.list()]
+        target_model = available_models[0] if available_models else 'gemini-2.5-flash'
 
-        last_error = None
-        # Tenta cada modelo ate encontrar um disponivel para a sua chave
-        for model_name in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                return jsonify({'response': response.text})
-            except Exception as err:
-                last_error = err
-                continue
+        response = client.models.generate_content(
+            model=target_model,
+            contents=prompt
+        )
 
-        # Se nenhum da lista funcionar, lanca o ultimo erro
-        raise last_error
+        return jsonify({'response': response.text})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error_detalhado': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
