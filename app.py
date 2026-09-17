@@ -4,8 +4,10 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# Configura a chave do Gemini da variável de ambiente
+# Configura a chave da API do Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+# Modelo atualizado conforme exigido pela API do Google
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 @app.route('/', methods=['GET'])
