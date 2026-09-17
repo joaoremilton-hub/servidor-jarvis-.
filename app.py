@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # Configura a chave do Gemini da variável de ambiente
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 @app.route('/', methods=['GET'])
 def home():
