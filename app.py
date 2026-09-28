@@ -1,11 +1,17 @@
 from flask import Flask, request, jsonify
-import requests
+import google.generativeai as genai
+import os
 
 app = Flask(__name__)
 
+# Configura a chave de API do Gemini (Coloque sua chave nas variáveis de ambiente do Render)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
 @app.route('/', methods=['GET'])
 def home():
-    return "Servidor de Buscas Jarvis Ativo!"
+    return "Servidor Jarvis com IA Ativo!"
 
 @app.route('/busca', methods=['POST'])
 def busca():
@@ -14,44 +20,20 @@ def busca():
         query = data.get('query', '').strip()
         
         if not query:
-            return jsonify({'resposta': 'Nenhum termo para buscar.'}), 400
+            return jsonify({'resposta': 'Nenhum termo enviado.'}), 400
 
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-
-        # 1. PRIMEIRO: Tenta a API Web Dinâmica (Tempo, Prefeitos, Cotações, Notícias)
-        api_url = f"https://api.duckduckgo.com/?q={requests.utils.quote(query)}&format=json&no_html=1&skip_disambig=1"
-        try:
-            res_ddg = requests.get(api_url, headers=headers, timeout=5).json()
-            
-            abstract = res_ddg.get('AbstractText', '')
-            if abstract:
-                return jsonify({'resposta': abstract})
-                
-            heading = res_ddg.get('Heading', '')
-            related = res_ddg.get('RelatedTopics', [])
-            if related and isinstance(related[0], dict) and 'Text' in related[0]:
-                return jsonify({'resposta': related[0]['Text']})
-        except:
-            pass # Se falhar, avança para a Wikipedia
-
-        # 2. SEGUNDO: Se a web geral não trouxe resumo direto, busca na Wikipedia
-        search_url = f"https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query)}&format=json"
-        search_res = requests.get(search_url, headers=headers, timeout=5).json()
-        search_results = search_res.get('query', {}).get('search', [])
-
-        if search_results:
-            exact_title = search_results[0]['title']
-            summary_url = f"https://pt.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(exact_title)}"
-            summary_res = requests.get(summary_url, headers=headers, timeout=5)
-            if summary_res.status_code == 200:
-                resumo = summary_res.json().get('extract', '')
-                if resumo:
-                    return jsonify({'resposta': resumo})
-
-        return jsonify({'resposta': f'Não encontrei resumo direto para "{query}". Tente especificar melhor.'})
+        # Usa o modelo mais rápido e leve do Google Gemini
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        prompt = f"Responda a seguinte pergunta de forma muito direta, resumida e precisa em 1 ou 2 frases: {query}"
+        
+        response = model.generate_content(prompt)
+        resposta_texto = response.text.strip()
+        
+        return jsonify({'resposta': resposta_texto})
 
     except Exception as e:
-        return jsonify({'resposta': f'Erro no servidor: {str(e)}'}), 500
+        return jsonify({'resposta': f'Erro ao processar IA: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
