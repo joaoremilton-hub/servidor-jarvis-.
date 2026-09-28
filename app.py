@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 import requests
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
 def home():
-    return "Servidor de Buscas Jarvis Ativo!"
+    return "Servidor de Buscas Geral Jarvis Ativo!"
 
 @app.route('/busca', methods=['POST'])
 def busca():
@@ -16,21 +17,28 @@ def busca():
         if not query:
             return jsonify({'resposta': 'Nenhum termo para buscar.'}), 400
 
-        # Faz a chamada direta a API REST oficial da Wikipedia em Portugues
-        url = f"https://pt.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(query)}"
-        headers = {'User-Agent': 'ESP32JarvisBot/1.0'}
+        # Faz requisição direta a versão Lite do DuckDuckGo (rápida e leve)
+        url = "https://html.duckduckgo.com/html/"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        payload = {'q': query}
         
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.post(url, data=payload, headers=headers, timeout=10)
         
         if response.status_code == 200:
-            wiki_data = response.json()
-            # Pega o resumo da pagina
-            resumo = wiki_data.get('extract', 'Sem resumo disponível.')
-            return jsonify({'resposta': resumo})
-        elif response.status_code == 404:
-            return jsonify({'resposta': f'Não encontrei resultados para "{query}" na Wikipedia.'})
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Extrai os trechos (snippets) de texto dos resultados da pesquisa
+            snippets = soup.find_all('a', class_='result__snippet')
+            
+            if snippets:
+                # Pega o resumo do primeiro resultado encontrado na Web
+                resumo = snippets[0].get_text(strip=True)
+                return jsonify({'resposta': resumo})
+            else:
+                return jsonify({'resposta': f'Não encontrei resultados para "{query}" na web.'})
         else:
-            return jsonify({'resposta': 'Erro ao consultar a base de dados da Wikipedia.'})
+            return jsonify({'resposta': 'Erro ao acessar o motor de busca na web.'})
 
     except Exception as e:
         return jsonify({'resposta': f'Erro no servidor: {str(e)}'}), 500
