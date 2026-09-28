@@ -16,11 +16,12 @@ def busca():
         if not query:
             return jsonify({'resposta': 'Nenhum termo para buscar.'}), 400
 
-        # Faz a pesquisa rápida na web sem usar IA
-        results = list(DDGS().text(query, max_results=1))
+        # Usa o backend="lite" ou "html" para evitar timeouts em servidores
+        with DDGS(timeout=15) as ddgs:
+            results = list(ddgs.text(query, backend="lite", max_results=1))
         
-        if results:
-            resumo = results[0]['body']
+        if results and len(results) > 0:
+            resumo = results[0].get('body', 'Resultado encontrado sem resumo.')
             return jsonify({'resposta': resumo})
         else:
             return jsonify({'resposta': 'Não encontrei resultados para essa pesquisa na web.'})
