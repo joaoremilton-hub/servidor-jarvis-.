@@ -1,14 +1,13 @@
 from flask import Flask, request, jsonify
 import requests
-import os
+from bs4 import BeautifulSoup
+import re
 
 app = Flask(__name__)
 
-API_KEY = os.environ.get("GEMINI_API_KEY")
-
 @app.route('/', methods=['GET'])
 def home():
-    return "Servidor Jarvis com IA Direta Ativo!"
+    return "Servidor de Buscas Web Jarvis Ativo!"
 
 @app.route('/busca', methods=['POST'])
 def busca():
@@ -19,35 +18,45 @@ def busca():
         if not query:
             return jsonify({'resposta': 'Nenhum termo enviado.'}), 400
 
-        if not API_KEY:
-            return jsonify({'resposta': 'Erro: GEMINI_API_KEY não configurada no Render.'}), 500
-
-        # Chamada REST direta à API do Gemini (sem bibliotecas pesadas)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        headers = {'Content-Type': 'application/json'}
-        
-        prompt_text = f"Responda à seguinte pergunta de forma muito direta e curta em 1 ou 2 frases: {query}"
-        
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt_text}]
-            }]
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
 
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        # 1. TENTA BUSCA GERAL NA WEB (DuckDuckGo Lite)
+        url = "https://lite.duckduckgo.com/lite/"
+        payload = {'q': query}
         
-        if response.status_code == 200:
-            res_json = response.json()
-            try:
-                text_response = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
-                return jsonify({'resposta': text_response})
-            except (KeyError, IndexError):
-                return jsonify({'resposta': 'Não consegui processar a resposta da IA.'})
-        else:
-            return jsonify({'resposta': f'Erro na API Gemini (Código {response.status_code}). Verificar chave.'})
+        res = requests.post(url, data=payload, headers=headers, timeout=8)
+        
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            # Extrai os snippets de texto dos resultados da pesquisa web
+            snippets = soup.find_all('td', class_='result-snippet')
+            
+            if snippets:
+                # Pega o primeiro resultado da web e limpa espaços extras
+                texto_resultado = snippets[0].get_text(strip=True)
+                texto_resultado = re.sub(r'\s+', ' ', texto_resultado)
+                return jsonify({'resposta': texto_resultado})
+
+        # 2. SE NÃO ACHAR NA WEB, BUSCA RESUMO NA WIKIPEDIA COMO FALLBACK
+        wiki_url = f"https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query)}&format=json"
+        wiki_res = requests.get(wiki_url, headers=headers, timeout=5).json()
+        search_results = wiki_res.get('query', {}).get('search', [])
+
+        if search_results:
+            exact_title = search_results[0]['title']
+            summary_url = f"https://pt.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(exact_title)}"
+            summary_res = requests.get(summary_url, headers=headers, timeout=5)
+            if summary_res.status_code == 200:
+                resumo = summary_res.json().get('extract', '')
+                if resumo:
+                    return jsonify({'resposta': resumo})
+
+        return jsonify({'resposta': f'Não encontrei resultados para "{query}" na web.'})
 
     except Exception as e:
-        return jsonify({'resposta': f'Erro no servidor: {str(e)}'}), 500
+        return jsonify({'resposta': f'Erro na busca web: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
