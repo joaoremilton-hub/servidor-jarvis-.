@@ -1,13 +1,11 @@
 from flask import Flask, request, jsonify
-import google.generativeai as genai
+from google import genai
 import os
 
 app = Flask(__name__)
 
-# Configura a chave de API do Gemini (Coloque sua chave nas variáveis de ambiente do Render)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+# Obtém a chave de API das variáveis de ambiente
+API_KEY = os.environ.get("GEMINI_API_KEY")
 
 @app.route('/', methods=['GET'])
 def home():
@@ -22,18 +20,23 @@ def busca():
         if not query:
             return jsonify({'resposta': 'Nenhum termo enviado.'}), 400
 
-        # Usa o modelo mais rápido e leve do Google Gemini
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        if not API_KEY:
+            return jsonify({'resposta': 'Erro: GEMINI_API_KEY não configurada no Render.'}), 500
+
+        # Inicializa o cliente com o novo SDK
+        client = genai.Client(api_key=API_KEY)
         
-        prompt = f"Responda a seguinte pergunta de forma muito direta, resumida e precisa em 1 ou 2 frases: {query}"
+        prompt = f"Responda à seguinte pergunta ou comando de forma muito direta e curta (máximo 1 ou 2 frases): {query}"
         
-        response = model.generate_content(prompt)
-        resposta_texto = response.text.strip()
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
         
-        return jsonify({'resposta': resposta_texto})
+        return jsonify({'resposta': response.text.strip()})
 
     except Exception as e:
-        return jsonify({'resposta': f'Erro ao processar IA: {str(e)}'}), 500
+        return jsonify({'resposta': f'Erro no processamento: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
