@@ -18,7 +18,23 @@ def busca():
 
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
 
-        # 1. Tenta primeira busca na Wikipedia pelo termo exato
+        # 1. PRIMEIRO: Tenta a API Web Dinâmica (Tempo, Prefeitos, Cotações, Notícias)
+        api_url = f"https://api.duckduckgo.com/?q={requests.utils.quote(query)}&format=json&no_html=1&skip_disambig=1"
+        try:
+            res_ddg = requests.get(api_url, headers=headers, timeout=5).json()
+            
+            abstract = res_ddg.get('AbstractText', '')
+            if abstract:
+                return jsonify({'resposta': abstract})
+                
+            heading = res_ddg.get('Heading', '')
+            related = res_ddg.get('RelatedTopics', [])
+            if related and isinstance(related[0], dict) and 'Text' in related[0]:
+                return jsonify({'resposta': related[0]['Text']})
+        except:
+            pass # Se falhar, avança para a Wikipedia
+
+        # 2. SEGUNDO: Se a web geral não trouxe resumo direto, busca na Wikipedia
         search_url = f"https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query)}&format=json"
         search_res = requests.get(search_url, headers=headers, timeout=5).json()
         search_results = search_res.get('query', {}).get('search', [])
@@ -31,19 +47,6 @@ def busca():
                 resumo = summary_res.json().get('extract', '')
                 if resumo:
                     return jsonify({'resposta': resumo})
-
-        # 2. Se nao achar na Wikipedia, usa a API DuckDuckGo Instant Answer (API Oficial sem bloqueio)
-        api_url = f"https://api.duckduckgo.com/?q={requests.utils.quote(query)}&format=json&no_html=1&skip_disambig=1"
-        res_ddg = requests.get(api_url, headers=headers, timeout=5).json()
-        
-        abstract = res_ddg.get('AbstractText', '')
-        if abstract:
-            return jsonify({'resposta': abstract})
-            
-        heading = res_ddg.get('Heading', '')
-        related = res_ddg.get('RelatedTopics', [])
-        if related and 'Text' in related[0]:
-            return jsonify({'resposta': related[0]['Text']})
 
         return jsonify({'resposta': f'Não encontrei resumo direto para "{query}". Tente especificar melhor.'})
 
