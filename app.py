@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify
-from duckduckgo_search import DDGS
+import wikipedia
+
+# Define o idioma da Wikipedia para português
+wikipedia.set_lang("pt")
 
 app = Flask(__name__)
 
@@ -16,16 +19,21 @@ def busca():
         if not query:
             return jsonify({'resposta': 'Nenhum termo para buscar.'}), 400
 
-        # Usa o backend="lite" ou "html" para evitar timeouts em servidores
-        with DDGS(timeout=15) as ddgs:
-            results = list(ddgs.text(query, backend="lite", max_results=1))
-        
-        if results and len(results) > 0:
-            resumo = results[0].get('body', 'Resultado encontrado sem resumo.')
-            return jsonify({'resposta': resumo})
-        else:
-            return jsonify({'resposta': 'Não encontrei resultados para essa pesquisa na web.'})
+        # Busca um resumo rápido na Wikipedia (limite de 2 frases)
+        resumo = wikipedia.summary(query, sentences=2)
+        return jsonify({'resposta': resumo})
 
+    except wikipedia.exceptions.DisambiguationError as e:
+        # Se houver múltiplos significados, pega o primeiro termo
+        try:
+            resumo = wikipedia.summary(e.options[0], sentences=2)
+            return jsonify({'resposta': resumo})
+        except:
+            return jsonify({'resposta': f'A busca por "{query}" retornou vários resultados. Seja mais específico.'})
+            
+    except wikipedia.exceptions.PageError:
+        return jsonify({'resposta': f'Não encontrei informações sobre "{query}" na web.'})
+        
     except Exception as e:
         return jsonify({'resposta': f'Erro ao realizar busca: {str(e)}'}), 500
 
