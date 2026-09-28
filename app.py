@@ -1,15 +1,14 @@
 from flask import Flask, request, jsonify
-from google import genai
+import requests
 import os
 
 app = Flask(__name__)
 
-# Obtém a chave de API das variáveis de ambiente
 API_KEY = os.environ.get("GEMINI_API_KEY")
 
 @app.route('/', methods=['GET'])
 def home():
-    return "Servidor Jarvis com IA Ativo!"
+    return "Servidor Jarvis com IA Direta Ativo!"
 
 @app.route('/busca', methods=['POST'])
 def busca():
@@ -23,20 +22,32 @@ def busca():
         if not API_KEY:
             return jsonify({'resposta': 'Erro: GEMINI_API_KEY não configurada no Render.'}), 500
 
-        # Inicializa o cliente com o novo SDK
-        client = genai.Client(api_key=API_KEY)
+        # Chamada REST direta à API do Gemini (sem bibliotecas pesadas)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        headers = {'Content-Type': 'application/json'}
         
-        prompt = f"Responda à seguinte pergunta ou comando de forma muito direta e curta (máximo 1 ou 2 frases): {query}"
+        prompt_text = f"Responda à seguinte pergunta de forma muito direta e curta em 1 ou 2 frases: {query}"
         
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt_text}]
+            }]
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
         
-        return jsonify({'resposta': response.text.strip()})
+        if response.status_code == 200:
+            res_json = response.json()
+            try:
+                text_response = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+                return jsonify({'resposta': text_response})
+            except (KeyError, IndexError):
+                return jsonify({'resposta': 'Não consegui processar a resposta da IA.'})
+        else:
+            return jsonify({'resposta': f'Erro na API Gemini (Código {response.status_code}). Verificar chave.'})
 
     except Exception as e:
-        return jsonify({'resposta': f'Erro no processamento: {str(e)}'}), 500
+        return jsonify({'resposta': f'Erro no servidor: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
